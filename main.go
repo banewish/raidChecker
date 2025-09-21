@@ -20,5 +20,5 @@ func isValidNickName(name string) bool {
 
 func main() {
 	wowDatabase()
-	createClanMember("Wonksta", "Mage", "Fire")
+	//createClanMember("Wonksta", "Mage", "Fire")
 }

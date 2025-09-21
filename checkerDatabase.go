@@ -175,6 +175,44 @@ func listRaids() ([]Raids, error) {
 	return raids, nil
 }
 
+func createRaidMember(raidID int, memberID int, role string) error {
+	query := `INSERT INTO raidMembers (raid_id, member_id, role) VALUES ($1, $2, $3) RETURNING id`
+	var id int
+	err := db.QueryRow(query, raidID, memberID, role).Scan(&id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func deleteRaidMember(raidID int, memberID int) error {
+	query := `DELETE FROM raidMembers WHERE raid_id = $1 AND member_id = $2`
+	_, err := db.Exec(query, raidID, memberID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func listRaidMembers(raidID int) ([]RaidMembers, error) {
+	query := `SELECT raid_id, member_id, role FROM raidMembers WHERE raid_id = $1`
+	rows, err := db.Query(query, raidID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var members []RaidMembers
+	for rows.Next() {
+		var member RaidMembers
+		if err := rows.Scan(&member.raidID, &member.memberID, &member.role); err != nil {
+			return nil, err
+		}
+		members = append(members, member)
+	}
+	return members, nil
+}
+
 func createLoot(lootName, lootType string) (int, error) {
 	var id int
 	query := `INSERT INTO loot (lootName, lootType) VALUES ($1, $2) RETURNING loot_id`
@@ -185,10 +223,28 @@ func createLoot(lootName, lootType string) (int, error) {
 	return id, nil
 }
 
-func createRaidMember(raidID int, memberID int, role string) error {
-	query := `INSERT INTO raidMembers (raid_id, member_id, role) VALUES ($1, $2, $3) RETURNING id`
-	var id int
-	err := db.QueryRow(query, raidID, memberID, role).Scan(&id)
+func getLootByID(lootID int) (*Loot, error) {
+	var loot Loot
+	query := `SELECT loot_id, lootName, lootType FROM loot WHERE loot_id = &1`
+	err := db.QueryRow(query, lootID).Scan(&loot.lootID, &loot.lootName, &loot.lootType)
+	if err != nil {
+		return nil, err
+	}
+	return &loot, nil
+}
+
+func updateLoot(lootID int, lootName, lootType string) error {
+	query := `UPDATE loot SET lootName = $1, lootType = $2 WHERE loot_id = $3`
+	_, err := db.Exec(query, lootName, lootType, lootID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func deleteLoot(lootID int) error {
+	query := `DELETE FROM loot WHERE lootID = &1`
+	_, err := db.Exec(query, lootID)
 	if err != nil {
 		return err
 	}
