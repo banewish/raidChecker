@@ -20,6 +20,21 @@ type ClanMembers struct {
 	spec     string
 }
 
+type CurrentParty struct {
+	memberID int
+	partyID  int
+}
+
+type PartyInfo struct {
+	partyID   int
+	timestamp map[string]interface{}
+}
+
+type RaidHistory struct {
+	raidID  int
+	partyID int
+}
+
 type Drops struct {
 	dropID   int
 	raidID   int
@@ -33,17 +48,16 @@ type Loot struct {
 	lootType string
 }
 
-type RaidMembers struct {
-	raidID   int
-	memberID int
-	role     string
+type RaidType struct {
+	raidTypeID  int
+	dungeonName string
+	lootID      int
 }
 
-type Raids struct {
-	raidID       int
-	dungeonName  string
-	raidDate     map[string]interface{}
-	raidLeaderID int
+type RaidsInfo struct {
+	raidID           int
+	raidTimeMetadata map[string]interface{}
+	raidTypeID       int
 }
 
 func wowDatabase() {
@@ -115,32 +129,32 @@ func deleteClanMember(memberID int) error {
 	return nil
 }
 
-func createRaid(dungeonName string, raidDate map[string]interface{}, raidLeaderID int) (int, error) {
+func createRaidInfo(raidTimeMetadata map[string]interface{}, raidTypeID int) (int, error) {
 	var id int
-	raidDate = map[string]interface{}{
+	raidTimeMetadata = map[string]interface{}{
 		"createdAt": time.Now().Format(time.RFC3339),
 	}
-	query := `INSERT INTO raids (dungeonName, raidDate, raidLeaderID) VALUES ($1, $2, $3) RETURNING raid_id`
-	err := db.QueryRow(query, dungeonName, raidDate, raidLeaderID).Scan(&id)
+	query := `INSERT INTO raidsInfo (raidTimeMetadata, raidTypeID) VALUES ($1, $2) RETURNING raid_id`
+	err := db.QueryRow(query, raidTimeMetadata, raidTypeID).Scan(&id)
 	if err != nil {
 		return 0, err
 	}
 	return id, nil
 }
 
-func getRaidByID(raidID int) (*Raids, error) {
-	var raid Raids
-	query := `SELECT raid_id, dungeonName, raidDate, raidLeaderID FROM raids WHERE raid_id = $1`
-	err := db.QueryRow(query, raidID).Scan(&raid.raidID, &raid.dungeonName, &raid.raidDate, &raid.raidLeaderID)
+func getRaidInfoByID(raidID int) (*RaidsInfo, error) {
+	var raidInfo RaidsInfo
+	query := `SELECT raid_id, dungeonName, raidTimeMetadata, raidTypeID FROM raidsInfo WHERE raid_id = $1`
+	err := db.QueryRow(query, raidID).Scan(&raidInfo.raidID, &raidInfo.raidTimeMetadata, &raidInfo.raidTypeID)
 	if err != nil {
 		return nil, err
 	}
-	return &raid, nil
+	return &raidInfo, nil
 }
 
-func updateRaid(raidID int, dungeonName string, raidDate map[string]interface{}, raidLeaderID int) error {
-	query := `UPDATE raids SET dungeonName = $1, raidDate = $2, raidLeaderID = $3 WHERE raid_id = $4`
-	_, err := db.Exec(query, dungeonName, raidDate, raidLeaderID, raidID)
+func updateRaidInfo(raidID int, raidTimeMetadata map[string]interface{}, raidTypeID int) error {
+	query := `UPDATE raidsInfo SET raidTimeMetadata = $1, raidTypeID = $2 WHERE raid_id = $3`
+	_, err := db.Exec(query, raidTimeMetadata, raidTypeID, raidID)
 	if err != nil {
 		return err
 	}
@@ -148,7 +162,7 @@ func updateRaid(raidID int, dungeonName string, raidDate map[string]interface{},
 }
 
 func deleteRaid(raidID int) error {
-	query := `DELETE FROM raids WHERE raid_id = $1`
+	query := `DELETE FROM raidsIInfo WHERE raid_id = $1`
 	_, err := db.Exec(query, raidID)
 	if err != nil {
 		return err
@@ -156,18 +170,18 @@ func deleteRaid(raidID int) error {
 	return nil
 }
 
-func listRaids() ([]Raids, error) {
-	query := `SELECT raid_id, dungeonName, raidDate, raidLeaderID FROM raids`
+func listRaids() ([]RaidsInfo, error) {
+	query := `SELECT raid_id, raidTimeMetadata, raidTypeID FROM raidsInfo`
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var raids []Raids
+	var raids []RaidsInfo
 	for rows.Next() {
-		var raid Raids
-		if err := rows.Scan(&raid.raidID, &raid.dungeonName, &raid.raidDate, &raid.raidLeaderID); err != nil {
+		var raid RaidsInfo
+		if err := rows.Scan(&raid.raidID, &raid.raidTimeMetadata, &raid.raidTypeID); err != nil {
 			return nil, err
 		}
 		raids = append(raids, raid)
@@ -175,37 +189,37 @@ func listRaids() ([]Raids, error) {
 	return raids, nil
 }
 
-func createRaidMember(raidID int, memberID int, role string) error {
-	query := `INSERT INTO raidMembers (raid_id, member_id, role) VALUES ($1, $2, $3) RETURNING id`
+func createCurrentParty(memberID int, partyID int) error {
+	query := `INSERT INTO currentParty (member_id, party_id) VALUES ($1, $2) RETURNING id`
 	var id int
-	err := db.QueryRow(query, raidID, memberID, role).Scan(&id)
+	err := db.QueryRow(query, memberID, partyID).Scan(&id)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func deleteRaidMember(raidID int, memberID int) error {
-	query := `DELETE FROM raidMembers WHERE raid_id = $1 AND member_id = $2`
-	_, err := db.Exec(query, raidID, memberID)
+func deleteCurrentParty(memberID int, partyID int) error {
+	query := `DELETE FROM currentParty WHERE member_id = $1 AND party_id = $2`
+	_, err := db.Exec(query, memberID, partyID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func listRaidMembers(raidID int) ([]RaidMembers, error) {
-	query := `SELECT raid_id, member_id, role FROM raidMembers WHERE raid_id = $1`
-	rows, err := db.Query(query, raidID)
+func listCurrentParty(partyID int) ([]CurrentParty, error) {
+	query := `SELECT member_id, party_id, role FROM currentParty WHERE party_id = $1`
+	rows, err := db.Query(query, partyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var members []RaidMembers
+	var members []CurrentParty
 	for rows.Next() {
-		var member RaidMembers
-		if err := rows.Scan(&member.raidID, &member.memberID, &member.role); err != nil {
+		var member CurrentParty
+		if err := rows.Scan(&member.memberID, &member.partyID); err != nil {
 			return nil, err
 		}
 		members = append(members, member)
@@ -249,4 +263,122 @@ func deleteLoot(lootID int) error {
 		return err
 	}
 	return nil
+}
+
+func listLoot() ([]Loot, error) {
+	query := `SELECT loot_id, lootName, lootType FROM loot`
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var lootItems []Loot
+	for rows.Next() {
+		var loot Loot
+		if err := rows.Scan(&loot.lootID, &loot.lootName, &loot.lootType); err != nil {
+			return nil, err
+		}
+		lootItems = append(lootItems, loot)
+	}
+	return lootItems, nil
+}
+
+func createRaidType(raidTypeID int, dungeonName string, loot_id int) error {
+	query := `INSERT INTO raidType (raidTypeID, dungeonName, loot_id) VALUES ($1, $2, $3) RETURNING raidTypeID`
+	var id int
+	err := db.QueryRow(query, raidTypeID, dungeonName, loot_id).Scan(&id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func updateRaidType(raidTypeID int, dungeonName string, loot_id int) error {
+	query := `UPDATE raidType SET dungeonName = $1, loot_id = $2 WHERE raidTypeID = $3`
+	_, err := db.Exec(query, dungeonName, loot_id, raidTypeID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func deleteRaidType(raidTypeID int) error {
+	query := `DELETE FROM raidType WHERE raidTypeID = $1`
+	_, err := db.Exec(query, raidTypeID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func listRaidTypes() ([]RaidType, error) {
+	query := `SELECT raidTypeID, dungeonName, loot_id FROM raidType`
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var raidTypes []RaidType
+	for rows.Next() {
+		var raidType RaidType
+		if err := rows.Scan(&raidType.raidTypeID, &raidType.dungeonName, &raidType.lootID); err != nil {
+			return nil, err
+		}
+		raidTypes = append(raidTypes, raidType)
+	}
+	return raidTypes, nil
+}
+
+func createPartyInfo(timestamp map[string]interface{}) (int, error) {
+	var id int
+	timestamp = map[string]interface{}{
+		"created_at": time.Now(),
+		"updated_at": time.Now(),
+	}
+	query := `INSERT INTO partyInfo (created_at, updated_at) VALUES ($1, $2) RETURNING id`
+	err := db.QueryRow(query, timestamp["created_at"], timestamp["updated_at"]).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func deletePartyInfo(partyID int) error {
+	query := `DELETE FROM partyInfo WHERE partyID = $1`
+	_, err := db.Exec(query, partyID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func listPartyInfo() ([]PartyInfo, error) {
+	query := `SELECT partyID, timestamp FROM partyInfo`
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var partyInfoList []PartyInfo
+	for rows.Next() {
+		var partyInfo PartyInfo
+		if err := rows.Scan(&partyInfo.partyID, &partyInfo.timestamp); err != nil {
+			return nil, err
+		}
+		partyInfoList = append(partyInfoList, partyInfo)
+	}
+	return partyInfoList, nil
+}
+
+func createRaidHistory(partyID int, raidID int) (int, error) {
+	var id int
+	query := `INSERT INTO raidHistory (partyID, raidID) VALUES ($1, $2) RETURNING id`
+	err := db.QueryRow(query, partyID, raidID).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }
