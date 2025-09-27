@@ -382,3 +382,32 @@ func createRaidHistory(partyID int, raidID int) (int, error) {
 	}
 	return id, nil
 }
+
+func createDrops(raidID, memberID, lootID int) (int, error) {
+	var id int
+	query := `INSERT INTO drops (raidID, memberID, lootID) VALUES ($1, $2, $3) RETURNING id`
+	err := db.QueryRow(query, raidID, memberID, lootID).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func listAllDrops() ([]Drops, error) {
+	query := `SELECT dropID, raidID, memberID, lootID FROM drops`
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var drops []Drops
+	for rows.Next() {
+		var drop Drops
+		if err := rows.Scan(&drop.dropID, &drop.raidID, &drop.memberID, &drop.lootID); err != nil {
+			return nil, err
+		}
+		drops = append(drops, drop)
+	}
+	return drops, nil
+}
