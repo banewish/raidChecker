@@ -101,10 +101,29 @@ func createClanMember(nickname, class, spec string) (int, error) {
 	return id, nil
 }
 
-func getClanMemberByID(nickname string) (*ClanMembers, error) {
+func listClanMembers() ([]ClanMembers, error) {
+	query := `SELECT member_id, nickname, class, spec FROM clanMembers`
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var members []ClanMembers
+	for rows.Next() {
+		var member ClanMembers
+		if err := rows.Scan(&member.memberID, &member.nickname, &member.class, &member.spec); err != nil {
+			return nil, err
+		}
+		members = append(members, member)
+	}
+	return members, nil
+}
+
+func getClanMemberByID(memberID int) (*ClanMembers, error) {
 	var member ClanMembers
-	query := `SELECT member_id, nickname, class, spec FROM clanMembers WHERE nickname = $1`
-	err := db.QueryRow(query, nickname).Scan(&member.memberID, &member.nickname, &member.class, &member.spec)
+	query := `SELECT member_id, nickname, class, spec FROM clanMembers WHERE member_id = $1`
+	err := db.QueryRow(query, memberID).Scan(&member.memberID, &member.nickname, &member.class, &member.spec)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +189,7 @@ func deleteRaid(raidID int) error {
 	return nil
 }
 
-func listRaids() ([]RaidsInfo, error) {
+func listRaidsInfo() ([]RaidsInfo, error) {
 	query := `SELECT raid_id, raidTimeMetadata, raidTypeID FROM raidsInfo`
 	rows, err := db.Query(query)
 	if err != nil {
@@ -284,14 +303,14 @@ func listLoot() ([]Loot, error) {
 	return lootItems, nil
 }
 
-func createRaidType(raidTypeID int, dungeonName string, loot_id int) error {
-	query := `INSERT INTO raidType (raidTypeID, dungeonName, loot_id) VALUES ($1, $2, $3) RETURNING raidTypeID`
+func createRaidType(raidTypeID int, dungeonName string, lootID int) (int, error) {
+	query := `INSERT INTO raidType (raidTypeID, dungeonName, lootID) VALUES ($1, $2, $3) RETURNING raidTypeID`
 	var id int
-	err := db.QueryRow(query, raidTypeID, dungeonName, loot_id).Scan(&id)
+	err := db.QueryRow(query, raidTypeID, dungeonName, lootID).Scan(&id)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return id, nil
 }
 
 func updateRaidType(raidTypeID int, dungeonName string, loot_id int) error {

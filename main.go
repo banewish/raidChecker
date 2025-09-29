@@ -5,16 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 )
-
-func isAdmin() bool {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter admin password: ")
-	pass, _ := reader.ReadString('\n')
-	pass = strings.TrimSpace(pass)
-	return pass == os.Getenv("ADMIN_PASSWORD")
-}
 
 func main() {
 	wowDatabase()
@@ -24,14 +15,10 @@ func main() {
 		fmt.Println("Choose an action:")
 		fmt.Println("1 - Create Clan Member")
 		fmt.Println("2 - List Clan Members")
-		fmt.Println("3 - Create Raid")
-		fmt.Println("4 - List Raids")
-		fmt.Println("5 - Add Raid Member")
-		fmt.Println("6 - List Raid Members")
-		fmt.Println("7 - Create Loot")
-		fmt.Println("8 - List Loot")
-		fmt.Println("9 - Create Drop")
-		fmt.Println("10 - List Drops")
+		fmt.Println("3 - Get Clan Member by ID")
+		fmt.Println("4 - Update Clan Member by ID")
+		fmt.Println("5 - Delete Clan Member by ID")
+		fmt.Println("6 - Create Raid Type")
 		fmt.Println("0 - Exit")
 		fmt.Print("Enter choice: ")
 		scanner.Scan()
@@ -39,160 +26,117 @@ func main() {
 
 		switch choice {
 		case "1":
-			if isAdmin() {
-				fmt.Print("Enter nickname: ")
-				scanner.Scan()
-				nickname := scanner.Text()
-				fmt.Print("Enter class: ")
-				scanner.Scan()
-				class := scanner.Text()
-				fmt.Print("Enter spec: ")
-				scanner.Scan()
-				spec := scanner.Text()
-				_, err := createClanMember(nickname, class, spec)
-				if err != nil {
-					fmt.Println("Error creating clan member:", err)
-				} else {
-					fmt.Println("Clan member created successfully.")
-				}
+			fmt.Print("Enter nickname: ")
+			scanner.Scan()
+			nickname := scanner.Text()
+			fmt.Print("Enter class: ")
+			scanner.Scan()
+			class := scanner.Text()
+			fmt.Print("Enter spec: ")
+			scanner.Scan()
+			spec := scanner.Text()
+			id, err := createClanMember(nickname, class, spec)
+			if err != nil {
+				fmt.Println("Error creating clan member:", err)
 			} else {
-				fmt.Println("Admin access required.")
+				fmt.Printf("Clan member created successfully with id %d\n", id)
 			}
 
 		case "2":
-			fmt.Print("Enter member ID or nickname: ")
-			scanner.Scan()
-			memberInput := scanner.Text()
-			getClanMemberByID(memberInput)
+			// List all clan members
+			members, err := listClanMembers()
+			if err != nil {
+				fmt.Println("Error listing clan members:", err)
+			} else if len(members) == 0 {
+				fmt.Println("No clan members found.")
+			} else {
+				for _, member := range members {
+					fmt.Printf("ID: %d, Nickname: %s, Class: %s, Spec: %s\n", member.memberID, member.nickname, member.class, member.spec)
+				}
+			}
 
 		case "3":
-			if isAdmin() {
-				fmt.Print("Enter dungeon ID: ")
-				scanner.Scan()
-				dungeonIDStr := scanner.Text()
-				fmt.Print("Enter raid time (YYYY-MM-DD HH:MM): ")
-				scanner.Scan()
-				raidTime := scanner.Text()
-				fmt.Print("Enter raid leader member ID: ")
-				scanner.Scan()
-				raidLeaderIDStr := scanner.Text()
-
-				dungeonID, err := strconv.Atoi(dungeonIDStr)
-				if err != nil {
-					fmt.Println("Invalid dungeon ID:", err)
-					break
-				}
-				raidLeaderID, err := strconv.Atoi(raidLeaderIDStr)
-				if err != nil {
-					fmt.Println("Invalid raid leader ID:", err)
-					break
-				}
-
-				err = createRaidType(dungeonID, raidTime, raidLeaderID)
-				if err != nil {
-					fmt.Println("Error creating raid:", err)
-				} else {
-					fmt.Println("Raid created successfully.")
-				}
+			fmt.Print("Enter member ID: ")
+			scanner.Scan()
+			memberInput := scanner.Text()
+			memberID, err := strconv.Atoi(memberInput)
+			if err != nil {
+				fmt.Println("Invalid member ID:", err)
 			} else {
-				fmt.Println("Admin access required.")
+				member, err := getClanMemberByID(memberID)
+				if err != nil {
+					fmt.Println("Error getting clan member:", err)
+				} else if member == nil {
+					fmt.Println("Clan member not found.")
+				} else {
+					fmt.Printf("ID: %d, Nickname: %s, Class: %s, Spec: %s\n", member.memberID, member.nickname, member.class, member.spec)
+				}
 			}
 
 		case "4":
-			listRaids()
-
-		case "5":
-			if isAdmin() {
-				fmt.Print("Enter raid ID: ")
-				scanner.Scan()
-				raidIDStr := scanner.Text()
-				fmt.Print("Enter member ID: ")
-				scanner.Scan()
-				memberIDStr := scanner.Text()
-				raidID, err := strconv.Atoi(raidIDStr)
-				if err != nil {
-					fmt.Println("Invalid raid ID:", err)
-					break
-				}
-				memberID, err := strconv.Atoi(memberIDStr)
-				if err != nil {
-					fmt.Println("Invalid member ID:", err)
-					break
-				}
-				err = createCurrentParty(raidID, memberID)
-				if err != nil {
-					fmt.Println("Error adding raid member:", err)
-				} else {
-					fmt.Println("Raid member added successfully.")
-				}
+			fmt.Print("Enter member ID to update: ")
+			scanner.Scan()
+			memberInput := scanner.Text()
+			memberID, err := strconv.Atoi(memberInput)
+			if err != nil {
+				fmt.Println("Invalid member ID:", err)
 			} else {
-				fmt.Println("Admin access required.")
+				fmt.Print("Enter new nickname: ")
+				scanner.Scan()
+				newNickname := scanner.Text()
+				fmt.Print("Enter new class: ")
+				scanner.Scan()
+				newClass := scanner.Text()
+				fmt.Print("Enter new spec: ")
+				scanner.Scan()
+				newSpec := scanner.Text()
+				err := updateClanMember(memberID, newNickname, newClass, newSpec)
+				if err != nil {
+					fmt.Println("Error updating clan member:", err)
+				} else {
+					fmt.Println("Clan member updated successfully.")
+				}
+			}
+		case "5":
+			fmt.Print("Enter member ID to delete: ")
+			scanner.Scan()
+			memberInput := scanner.Text()
+			memberID, err := strconv.Atoi(memberInput)
+			if err != nil {
+				fmt.Println("Invalid member ID:", err)
+			} else {
+				deleteClanMember(memberID)
+				fmt.Printf("Clan member with ID %d deleted successfully.\n", memberID)
 			}
 
 		case "6":
-			listCurrentParty(0)
-
-		case "7":
-			if isAdmin() {
-				fmt.Print("Enter loot name: ")
-				scanner.Scan()
-				lootName := scanner.Text()
-				fmt.Print("Enter loot type: ")
-				scanner.Scan()
-				lootType := scanner.Text()
-				_, err := createLoot(lootName, lootType)
-				if err != nil {
-					fmt.Println("Error creating loot:", err)
-				} else {
-					fmt.Println("Loot created successfully.")
-				}
+			fmt.Print("Enter dungeon name: ")
+			scanner.Scan()
+			dungeonName := scanner.Text()
+			fmt.Print("Enter loot ID: ")
+			scanner.Scan()
+			lootIDInput := scanner.Text()
+			lootID, err := strconv.Atoi(lootIDInput)
+			if err != nil {
+				fmt.Println("Invalid loot ID:", err)
 			} else {
-				fmt.Println("Admin access required.")
+				fmt.Print("Enter raid type ID: ")
+				scanner.Scan()
+				raidTypeIDInput := scanner.Text()
+				raidTypeID, err := strconv.Atoi(raidTypeIDInput)
+				id, err := createRaidType(raidTypeID, dungeonName, lootID)
+				if err != nil {
+					fmt.Println("Error creating raid type:", err)
+				} else {
+					fmt.Printf("Raid type created successfully with id %d\n", id)
+				}
 			}
 
-		case "8":
-			listLoot()
-
-		case "9":
-			if isAdmin() {
-				fmt.Print("Enter raid ID: ")
-				scanner.Scan()
-				raidIDStr := scanner.Text()
-				fmt.Print("Enter member ID: ")
-				scanner.Scan()
-				memberIDStr := scanner.Text()
-				fmt.Print("Enter loot ID: ")
-				scanner.Scan()
-				lootIDStr := scanner.Text()
-
-				raidID, err := strconv.Atoi(raidIDStr)
-				if err != nil {
-					fmt.Println("Invalid raid ID:", err)
-					break
-				}
-				memberID, err := strconv.Atoi(memberIDStr)
-				if err != nil {
-					fmt.Println("Invalid member ID:", err)
-					break
-				}
-				lootID, err := strconv.Atoi(lootIDStr)
-				if err != nil {
-					fmt.Println("Invalid loot ID:", err)
-					break
-				}
-
-				_, dropErr := createDrops(raidID, memberID, lootID)
-				if dropErr != nil {
-					fmt.Println("Error creating drop:", dropErr)
-				} else {
-					fmt.Println("Drop created successfully.")
-				}
-			} else {
-				fmt.Println("Admin access required.")
-			}
-
-		case "10":
-			listAllDrops()
+		case "0":
+			fmt.Println("Exiting...")
+			return
+		default:
+			fmt.Println("Invalid choice, please try again.")
 		}
 	}
 }
