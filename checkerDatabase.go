@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -148,32 +149,51 @@ func deleteClanMember(memberID int) error {
 	return nil
 }
 
-func createRaidInfo(raidTimeMetadata map[string]interface{}, raidTypeID int) (int, error) {
-	var id int
-	raidTimeMetadata = map[string]interface{}{
+func createRaidInfo(raidTypeID int) (int, error) {
+	raidTimeMetadata := map[string]interface{}{
 		"createdAt": time.Now().Format(time.RFC3339),
+		"updatedAt": time.Now().Format(time.RFC3339),
 	}
-	query := `INSERT INTO raidsInfo (raidTimeMetadata, raidTypeID) VALUES ($1, $2) RETURNING raid_id`
-	err := db.QueryRow(query, raidTimeMetadata, raidTypeID).Scan(&id)
+	metaBytes, err := json.Marshal(raidTimeMetadata)
 	if err != nil {
 		return 0, err
 	}
-	return id, nil
+	query := `INSERT INTO raidsInfo (raid_Time_Metadata, raidType_ID) VALUES ($1, $2) RETURNING raid_id`
+	var raidID int
+	err = db.QueryRow(query, metaBytes, raidTypeID).Scan(&raidID)
+	if err != nil {
+		return 0, err
+	}
+	return raidID, nil
 }
 
 func getRaidInfoByID(raidID int) (*RaidsInfo, error) {
 	var raidInfo RaidsInfo
-	query := `SELECT raid_id, dungeonName, raidTimeMetadata, raidTypeID FROM raidsInfo WHERE raid_id = $1`
-	err := db.QueryRow(query, raidID).Scan(&raidInfo.raidID, &raidInfo.raidTimeMetadata, &raidInfo.raidTypeID)
+	var metaBytes []byte
+	query := `SELECT raid_id, raid_Time_Metadata, raidType_ID FROM raidsInfo WHERE raid_id = $1`
+	err := db.QueryRow(query, raidID).Scan(&raidInfo.raidID, &metaBytes, &raidInfo.raidTypeID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Unmarshal JSON data into map
+	err = json.Unmarshal(metaBytes, &raidInfo.raidTimeMetadata)
+	if err != nil {
+		return nil, err
+	}
+
 	return &raidInfo, nil
 }
 
 func updateRaidInfo(raidID int, raidTimeMetadata map[string]interface{}, raidTypeID int) error {
-	query := `UPDATE raidsInfo SET raidTimeMetadata = $1, raidTypeID = $2 WHERE raid_id = $3`
-	_, err := db.Exec(query, raidTimeMetadata, raidTypeID, raidID)
+	// Marshal the metadata to JSON bytes
+	metaBytes, err := json.Marshal(raidTimeMetadata)
+	if err != nil {
+		return err
+	}
+
+	query := `UPDATE raidsInfo SET raid_Time_Metadata = $1, raidType_ID = $2 WHERE raid_id = $3`
+	_, err = db.Exec(query, metaBytes, raidTypeID, raidID)
 	if err != nil {
 		return err
 	}
@@ -181,7 +201,7 @@ func updateRaidInfo(raidID int, raidTimeMetadata map[string]interface{}, raidTyp
 }
 
 func deleteRaid(raidID int) error {
-	query := `DELETE FROM raidsIInfo WHERE raid_id = $1`
+	query := `DELETE FROM raidsInfo WHERE raid_id = $1`
 	_, err := db.Exec(query, raidID)
 	if err != nil {
 		return err
@@ -190,7 +210,7 @@ func deleteRaid(raidID int) error {
 }
 
 func listRaidsInfo() ([]RaidsInfo, error) {
-	query := `SELECT raid_id, raidTimeMetadata, raidTypeID FROM raidsInfo`
+	query := `SELECT raid_id, raid_Time_Metadata, raidType_ID FROM raidsInfo`
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -200,9 +220,17 @@ func listRaidsInfo() ([]RaidsInfo, error) {
 	var raids []RaidsInfo
 	for rows.Next() {
 		var raid RaidsInfo
-		if err := rows.Scan(&raid.raidID, &raid.raidTimeMetadata, &raid.raidTypeID); err != nil {
+		var metaBytes []byte
+		if err := rows.Scan(&raid.raidID, &metaBytes, &raid.raidTypeID); err != nil {
 			return nil, err
 		}
+
+		// Unmarshal JSON data into map
+		err = json.Unmarshal(metaBytes, &raid.raidTimeMetadata)
+		if err != nil {
+			return nil, err
+		}
+
 		raids = append(raids, raid)
 	}
 	return raids, nil
@@ -228,7 +256,7 @@ func deleteCurrentParty(memberID int, partyID int) error {
 }
 
 func listCurrentParty(partyID int) ([]CurrentParty, error) {
-	query := `SELECT member_id, party_id, role FROM currentParty WHERE party_id = $1`
+	query := `SELECT member_id, party_id FROM currentParty WHERE party_id = $1`
 	rows, err := db.Query(query, partyID)
 	if err != nil {
 		return nil, err
@@ -248,7 +276,7 @@ func listCurrentParty(partyID int) ([]CurrentParty, error) {
 
 func createLoot(lootName, lootType string) (int, error) {
 	var id int
-	query := `INSERT INTO loot (lootName, lootType) VALUES ($1, $2) RETURNING loot_id`
+	query := `INSERT INTO loot (loot_Name, loot_Type) VALUES ($1, $2) RETURNING loot_id`
 	err := db.QueryRow(query, lootName, lootType).Scan(&id)
 	if err != nil {
 		return 0, err
@@ -258,7 +286,7 @@ func createLoot(lootName, lootType string) (int, error) {
 
 func getLootByID(lootID int) (*Loot, error) {
 	var loot Loot
-	query := `SELECT loot_id, lootName, lootType FROM loot WHERE loot_id = &1`
+	query := `SELECT loot_id, loot_Name, loot_Type FROM loot WHERE loot_id = $1`
 	err := db.QueryRow(query, lootID).Scan(&loot.lootID, &loot.lootName, &loot.lootType)
 	if err != nil {
 		return nil, err
@@ -267,7 +295,7 @@ func getLootByID(lootID int) (*Loot, error) {
 }
 
 func updateLoot(lootID int, lootName, lootType string) error {
-	query := `UPDATE loot SET lootName = $1, lootType = $2 WHERE loot_id = $3`
+	query := `UPDATE loot SET loot_Name = $1, loot_Type = $2 WHERE loot_id = $3`
 	_, err := db.Exec(query, lootName, lootType, lootID)
 	if err != nil {
 		return err
@@ -276,7 +304,7 @@ func updateLoot(lootID int, lootName, lootType string) error {
 }
 
 func deleteLoot(lootID int) error {
-	query := `DELETE FROM loot WHERE lootID = &1`
+	query := `DELETE FROM loot WHERE loot_id = $1`
 	_, err := db.Exec(query, lootID)
 	if err != nil {
 		return err
@@ -285,7 +313,7 @@ func deleteLoot(lootID int) error {
 }
 
 func listLoot() ([]Loot, error) {
-	query := `SELECT loot_id, lootName, lootType FROM loot`
+	query := `SELECT loot_id, loot_Name, loot_Type FROM loot`
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -304,7 +332,7 @@ func listLoot() ([]Loot, error) {
 }
 
 func createRaidType(raidTypeID int, dungeonName string, lootID int) (int, error) {
-	query := `INSERT INTO raidType (raidTypeID, dungeonName, lootID) VALUES ($1, $2, $3) RETURNING raidTypeID`
+	query := `INSERT INTO raidType (raidType_ID, dungeon_Name, loot_ID) VALUES ($1, $2, $3) RETURNING raidType_ID`
 	var id int
 	err := db.QueryRow(query, raidTypeID, dungeonName, lootID).Scan(&id)
 	if err != nil {
@@ -313,9 +341,9 @@ func createRaidType(raidTypeID int, dungeonName string, lootID int) (int, error)
 	return id, nil
 }
 
-func updateRaidType(raidTypeID int, dungeonName string, loot_id int) error {
-	query := `UPDATE raidType SET dungeonName = $1, loot_id = $2 WHERE raidTypeID = $3`
-	_, err := db.Exec(query, dungeonName, loot_id, raidTypeID)
+func updateRaidType(raidTypeID int, dungeonName string, lootID int) error {
+	query := `UPDATE raidType SET dungeon_Name = $1, loot_ID = $2 WHERE raidType_ID = $3`
+	_, err := db.Exec(query, dungeonName, lootID, raidTypeID)
 	if err != nil {
 		return err
 	}
@@ -323,7 +351,7 @@ func updateRaidType(raidTypeID int, dungeonName string, loot_id int) error {
 }
 
 func deleteRaidType(raidTypeID int) error {
-	query := `DELETE FROM raidType WHERE raidTypeID = $1`
+	query := `DELETE FROM raidType WHERE raidType_ID = $1`
 	_, err := db.Exec(query, raidTypeID)
 	if err != nil {
 		return err
@@ -332,7 +360,7 @@ func deleteRaidType(raidTypeID int) error {
 }
 
 func listRaidTypes() ([]RaidType, error) {
-	query := `SELECT raidTypeID, dungeonName, loot_id FROM raidType`
+	query := `SELECT raidType_ID, dungeon_Name, loot_id FROM raidType`
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
